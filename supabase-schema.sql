@@ -79,6 +79,23 @@ CREATE TABLE IF NOT EXISTS queue (
 
 CREATE INDEX IF NOT EXISTS idx_queue_status_pending ON queue(status, scheduled_at) WHERE status = 'pending';
 
+-- Atomic claim function for queue
+CREATE OR REPLACE FUNCTION claim_queue_items(p_limit INT DEFAULT 5)
+RETURNS SETOF queue AS $$
+  UPDATE queue
+  SET status = 'sending', claimed_at = now()
+  WHERE id IN (
+    SELECT id FROM queue
+    WHERE status = 'pending'
+      AND scheduled_at <= now()
+      AND (window_expires_at IS NULL OR window_expires_at > now())
+    ORDER BY created_at ASC
+    LIMIT p_limit
+    FOR UPDATE SKIP LOCKED
+  )
+  RETURNING *;
+$$ LANGUAGE sql;
+
 -- 6. Events table
 CREATE TABLE IF NOT EXISTS events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -102,29 +119,11 @@ ALTER TABLE queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 
 -- ==========================================
--- pg_cron jobs
+-- pg_cron jobs (configure AFTER deploying to Vercel)
 -- ==========================================
-
--- Drain queue every minute
-SELECT cron.schedule(
-  'drain-queue',
-  '* * * * *',
-  $$
-    SELECT net.http_post(
-      url := current_setting('app.settings.app_url') || '/api/worker/drain',
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer ' || current_setting('app.settings.worker_secret') || '"}'::jsonb
-    );
-  $$
-);
-
--- Renew token weekly (Sunday 3am UTC = midnight BRT)
-SELECT cron.schedule(
-  'renew-token',
-  '0 3 * * 0',
-  $$
-    SELECT net.http_post(
-      url := current_setting('app.settings.app_url') || '/api/worker/renew-token',
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer ' || current_setting('app.settings.worker_secret') || '"}'::jsonb
-    );
-  $$
-);
+-- Run these AFTER you have your Vercel URL and set the app.settings:
+-- ALTER DATABASE SET "app.settings.app_url" = 'https://seu-app.vercel.app';
+-- ALTER DATABASE SET "app.settings.worker_secret" = 'worker_secret_abc123_xyz789';
+--
+-- SELECT cron.schedule('drain-queue', '* * * * *', ...);
+-- SELECT cron.schedule('renew-token', '0 3 * * 0', ...);

@@ -50,8 +50,9 @@ async function handleComment(comment: Record<string, unknown>) {
   const commentId = comment.id as string
   const postId = comment.media_id as string
   const text = (comment.text as string || '').toLowerCase().trim()
-  const userId = comment.from?.id as string
-  const username = comment.from?.username as string
+  const from = comment.from as Record<string, string> | undefined
+  const userId = from?.id as string
+  const username = from?.username as string
 
   if (!text || !userId) return
 
@@ -95,9 +96,10 @@ async function handleComment(comment: Record<string, unknown>) {
 }
 
 async function handleMessage(message: Record<string, unknown>) {
-  const senderId = message.from?.id as string
+  const msgFrom = message.from as Record<string, string> | undefined
+  const senderId = msgFrom?.id as string
   const text = (message.text as string || '').toLowerCase().trim()
-  const replyToStory = message.reply_to?.story as Record<string, unknown> | undefined
+  const replyToStory = (message.reply_to as Record<string, unknown> | undefined)?.story
 
   if (replyToStory) {
     await handleStoryReply(senderId, message)
