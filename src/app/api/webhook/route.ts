@@ -33,12 +33,20 @@ export async function POST(request: NextRequest) {
 
   const entries = body.entry || []
   for (const entry of entries) {
-    const changes = entry.changes || []
-    for (const change of changes) {
-      if (change.field === 'comments') {
-        await handleComment(change.value)
-      } else if (change.field === 'messages') {
-        await handleMessage(change.value)
+    if (entry.changes) {
+      for (const change of entry.changes) {
+        if (change.field === 'comments') {
+          await handleComment(change.value)
+        } else if (change.field === 'messages') {
+          await handleMessage(change.value)
+        }
+      }
+    }
+    if (entry.messaging) {
+      for (const msg of entry.messaging) {
+        if (msg.message && !msg.message.is_echo) {
+          await handleMessageFromMessaging(msg)
+        }
       }
     }
   }
@@ -107,6 +115,23 @@ async function handleMessage(message: Record<string, unknown>) {
   }
 
   if (!senderId || !text) return
+
+  await handleIncomingDM(senderId, text)
+}
+
+async function handleMessageFromMessaging(msg: Record<string, unknown>) {
+  const sender = msg.sender as Record<string, string> | undefined
+  const senderId = sender?.id
+  const messageObj = msg.message as Record<string, unknown> | undefined
+  const text = ((messageObj?.text as string) || '').toLowerCase().trim()
+  const replyToStory = (messageObj?.reply_to as Record<string, unknown> | undefined)?.story
+
+  if (!senderId || !text) return
+
+  if (replyToStory) {
+    await handleStoryReply(senderId, messageObj as Record<string, unknown>)
+    return
+  }
 
   await handleIncomingDM(senderId, text)
 }
