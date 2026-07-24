@@ -171,57 +171,37 @@ async function handleIncomingDM(senderId: string, text: string) {
   const { data: config } = await supabaseAdmin.from('config').select('*').eq('id', 'main').single()
   if (!config?.access_token) return
 
-  const { data: contact } = await supabaseAdmin
+  const { data: existingContact } = await supabaseAdmin
     .from('contacts')
-    .select('*, automations!inner(*)')
+    .select('ig_user_id')
     .eq('ig_user_id', senderId)
     .single()
 
-  if (contact) {
+  if (existingContact) {
     await supabaseAdmin
       .from('contacts')
       .update({ last_reply_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('ig_user_id', senderId)
+  }
 
-    const { data: automations } = await supabaseAdmin
-      .from('automations')
-      .select('*')
-      .eq('active', true)
-      .contains('triggers', ['dm'])
+  const { data: automations } = await supabaseAdmin
+    .from('automations')
+    .select('*')
+    .eq('active', true)
+    .contains('triggers', ['dm'])
 
-    if (automations?.length) {
-      for (const auto of automations) {
-        if (!matchesKeyword(text, auto.keywords, auto.match_type)) continue
-        await supabaseAdmin.from('queue').insert({
-          recipient_id: senderId,
-          message_body: buildWelcomeMessage(auto),
-          automation_id: auto.id,
-          contact_id: senderId,
-          status: 'pending',
-        })
-        break
-      }
-    }
-  } else {
-    for (const trigger of ['comment', 'story', 'dm']) {
-      const { data: autos } = await supabaseAdmin
-        .from('automations')
-        .select('*')
-        .eq('active', true)
-        .contains('triggers', [trigger])
-
-      if (!autos?.length) continue
-      for (const auto of autos) {
-        if (!matchesKeyword(text, auto.keywords, auto.match_type)) continue
-        await supabaseAdmin.from('queue').insert({
-          recipient_id: senderId,
-          message_body: buildWelcomeMessage(auto),
-          automation_id: auto.id,
-          contact_id: senderId,
-          status: 'pending',
-        })
-        return
-      }
+  if (automations?.length) {
+    for (const auto of automations) {
+      if (!matchesKeyword(text, auto.keywords, auto.match_type)) continue
+      await ensureContact(senderId, null, auto.id)
+      await supabaseAdmin.from('queue').insert({
+        recipient_id: senderId,
+        message_body: buildWelcomeMessage(auto),
+        automation_id: auto.id,
+        contact_id: senderId,
+        status: 'pending',
+      })
+      break
     }
   }
 }
