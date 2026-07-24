@@ -24,9 +24,18 @@ export async function igPost(endpoint: string, body: Record<string, unknown>, ac
 export async function exchangeShortToken(shortToken: string) {
   const appId = process.env.INSTAGRAM_APP_ID!
   const appSecret = process.env.INSTAGRAM_APP_SECRET!
-  const res = await fetch(
-    `https://api.instagram.com/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&grant_type=ig_exchange_token&redirect_uri=${encodeURIComponent(process.env.OAUTH_REDIRECT_URI!)}&code=${shortToken}`
-  )
+  const redirectUri = process.env.OAUTH_REDIRECT_URI!
+  const body = new URLSearchParams({
+    client_id: appId,
+    client_secret: appSecret,
+    grant_type: 'ig_exchange_token',
+    redirect_uri: redirectUri,
+    code: shortToken,
+  })
+  const res = await fetch('https://api.instagram.com/oauth/access_token', {
+    method: 'POST',
+    body,
+  })
   return res.json()
 }
 
