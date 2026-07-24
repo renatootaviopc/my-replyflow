@@ -1,4 +1,5 @@
 const IG_BASE = 'https://graph.instagram.com/v25.0'
+const IG_TOKEN_URL = 'https://graph.instagram.com/access_token'
 
 export async function igGet(endpoint: string, accessToken: string) {
   const url = endpoint.startsWith('http') ? endpoint : `${IG_BASE}${endpoint}`
@@ -28,7 +29,7 @@ export async function exchangeShortToken(shortToken: string) {
   const body = new URLSearchParams({
     client_id: appId,
     client_secret: appSecret,
-    grant_type: 'ig_exchange_token',
+    grant_type: 'authorization_code',
     redirect_uri: redirectUri,
     code: shortToken,
   })
@@ -41,14 +42,14 @@ export async function exchangeShortToken(shortToken: string) {
 
 export async function getLongToken(shortAccessToken: string) {
   const res = await fetch(
-    `${IG_BASE}/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET!}&access_token=${shortAccessToken}`
+    `${IG_TOKEN_URL}?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET!}&access_token=${shortAccessToken}`
   )
   return res.json()
 }
 
 export async function refreshToken(longToken: string) {
   const res = await fetch(
-    `${IG_BASE}/access_token?grant_type=ig_token_refresh&client_secret=${process.env.INSTAGRAM_APP_SECRET!}&access_token=${longToken}`
+    `${IG_TOKEN_URL}?grant_type=ig_token_refresh&client_secret=${process.env.INSTAGRAM_APP_SECRET!}&access_token=${longToken}`
   )
   return res.json()
 }
